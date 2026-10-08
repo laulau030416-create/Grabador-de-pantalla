@@ -2250,15 +2250,6 @@ input:checked + .slider-toggle:before {
   box-shadow: 0 0 0 3px var(--brand-soft);
 }
 
-.modal-input.otp-input {
-  text-align: center;
-  font-size: 26px;
-  font-weight: 800;
-  letter-spacing: 10px;
-  font-variant-numeric: tabular-nums;
-  padding: 14px 13px;
-}
-
 .modal-error {
   color: #ff9a9c;
   font-size: 12px;
@@ -2695,11 +2686,6 @@ input:checked + .slider-toggle:before {
 
   .modal {
     padding: 20px;
-  }
-
-  .modal-input.otp-input {
-    font-size: 22px;
-    letter-spacing: 7px;
   }
 
   .modal-actions {

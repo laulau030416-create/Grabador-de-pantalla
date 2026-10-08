@@ -12,12 +12,14 @@
     "test:coverage": "vitest run --coverage",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
-    "format": "prettier --write \"src/**/*.{ts,css}\" \"index.html\"",
-    "format:check": "prettier --check \"src/**/*.{ts,css}\" \"index.html\"",
+    "format": "prettier --write \"src/**/*.{ts,css}\" \"supabase/functions/**/*.ts\" \"index.html\"",
+    "format:check": "prettier --check \"src/**/*.{ts,css}\" \"supabase/functions/**/*.ts\" \"index.html\"",
+    "check:functions": "deno check --frozen --lock=deno.lock --node-modules-dir=auto supabase/functions/create-checkout-session/index.ts supabase/functions/create-portal-session/index.ts supabase/functions/stripe-webhook/index.ts",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist node_modules"
   },
   "dependencies": {
+    "@supabase/supabase-js": "2.117.2",
     "typescript": "^5.6.3"
   },
   "devDependencies": {
@@ -35,7 +37,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/eslendere3official-stack/Grabador-de-pantalla.git"
+    "url": "git+https://github.com/laulau030416-create/Grabador-de-pantalla.git"
   },
   "keywords": [
     "screen-recorder",
@@ -49,9 +51,9 @@
   "author": "eslendere3official-stack",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/eslendere3official-stack/Grabador-de-pantalla/issues"
+    "url": "https://github.com/laulau030416-create/Grabador-de-pantalla/issues"
   },
-  "homepage": "https://github.com/eslendere3official-stack/Grabador-de-pantalla",
+  "homepage": "https://github.com/laulau030416-create/Grabador-de-pantalla",
   "engines": {
     "node": ">=20.19.0"
   }

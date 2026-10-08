@@ -23,19 +23,13 @@ export const FREE_DAILY_SECONDS = 180;
 // Claves de almacenamiento local
 export const STORAGE_KEYS = {
   USAGE: "screenrec_usage_v1",
-  PRO: "screenrec_pro_v1",
-  SUBSCRIBER: "screenrec_subscriber_v1",
   SIDEBAR: "screenrec_sidebar_v1",
-  USER_EMAIL: "screenrec_email_v1",
   MEMBER_SINCE: "screenrec_since_v1",
-  PRO_SINCE: "screenrec_pro_since_v1",
 } as const;
 
-// Configuración del plan Pro.
-// Pega aquí tu enlace de pago (Lemon Squeezy / Stripe Payment Link) cuando lo tengas.
+// Los importes reales los fija Stripe por país/moneda y se muestran en Checkout.
 export const PRO = {
-  priceLabel: "4,99 €/mes",
-  checkoutUrl: "#", // TODO: reemplazar por tu enlace de pago real
+  priceLabel: "Suscripción mensual o anual",
   features: [
     "Grabación sin límite de 3 minutos",
     "Modo creador: tu cámara en círculo sobre el vídeo",
@@ -66,43 +60,6 @@ export const FREE_DEFAULTS = {
   framerate: "30" as Framerate,
   bitrate: "8000000" as Bitrate,
 } as const;
-
-// Endpoint opcional para recibir suscripciones por correo (ej: Formspree).
-// Si queda vacío, la suscripción se guarda solo localmente.
-export const EMAIL_ENDPOINT = "";
-
-// ============================================
-// Verificación por código (OTP) vía Formspree
-// ============================================
-
-// Endpoint de Formspree. Recibe las solicitudes de Pro en el correo del dueño.
-// IMPORTANTE: Formspree entrega los envíos al propietario del formulario, no al
-// visitante, por lo que NO sirve para hacerle llegar el código a él.
-export const FORMSPREE_ENDPOINT = "https://formspree.io/f/mdaqpaln";
-
-// EmailJS (opcional): sí permite enviar el código al correo del visitante.
-// Rellena los tres valores desde https://dashboard.emailjs.com para activar la
-// verificación en autoservicio. La plantilla debe usar las variables
-// {{to_email}} y {{code}}.
-export const EMAILJS = {
-  serviceId: "service_wl9ruq2",
-  templateId: "template_1e492ud",
-  publicKey: "3D12xyOp5zP5x-I1-",
-} as const;
-
-/**
- * Canal de entrega del código de verificación:
- * - "visitor": EmailJS configurado, el código llega al usuario (autoservicio).
- * - "owner": solo Formspree, la solicitud llega al dueño (activación manual).
- * - "none": nada configurado.
- */
-export type OtpChannel = "visitor" | "owner" | "none";
-
-// Longitud del código de verificación
-export const OTP_LENGTH = 6;
-
-// Validez del código (15 minutos, igual que el texto de la plantilla de EmailJS)
-export const OTP_TTL_MS = 15 * 60 * 1000;
 
 // Duración máxima de una sola grabación en el plan gratuito (3 minutos)
 export const FREE_MAX_RECORDING_SECONDS = 180;
@@ -267,7 +224,7 @@ export const FAQ_ITEMS: { category: FaqCategory; question: string; answer: strin
     category: "Biblioteca y datos",
     question: "¿Dónde se guardan mis grabaciones?",
     answer:
-      "En tu propio equipo. <strong>Nada se sube a ningún servidor</strong>: el vídeo se procesa y se guarda dentro de tu navegador. Al terminar puedes descargarlo o pulsar <strong>Guardar en biblioteca</strong>, y ahí seguirá disponible <strong>aunque cierres la página o apagues el ordenador</strong>.",
+      "En tu propio equipo. <strong>Los vídeos no se suben a ningún servidor</strong>: se procesan y se guardan dentro de tu navegador. Al terminar puedes descargarlo o pulsar <strong>Guardar en biblioteca</strong>. Si usas una cuenta Pro, el correo y los datos de la suscripción se procesan de forma separada por Supabase y Stripe; el contenido de tus vídeos no se envía.",
   },
   {
     category: "Biblioteca y datos",
@@ -315,19 +272,19 @@ export const FAQ_ITEMS: { category: FaqCategory; question: string; answer: strin
     category: "Plan y límites",
     question: "¿Cómo activo el plan Pro?",
     answer:
-      "Pulsa <strong>Desbloquear Pro</strong>, introduce tu correo y recibirás un <strong>código de 6 dígitos</strong>. Introdúcelo en la app y se activará al instante. Solo se admiten proveedores conocidos (Gmail, Outlook, Yahoo, iCloud o Proton) y no se aceptan correos temporales.",
+      "Cuando la facturación esté habilitada, pulsa <strong>Desbloquear Pro</strong>, elige un plan mensual o anual e inicia sesión mediante un enlace seguro enviado a tu correo. Completa el pago en la página alojada de Stripe. Pro se activa al confirmarse la suscripción; el precio y la moneda se muestran antes de pagar.",
   },
   {
     category: "Plan y límites",
-    question: "No me llega el código de verificación",
+    question: "No me llega el enlace para iniciar sesión",
     answer:
-      "Revisa primero la carpeta de <strong>spam o correo no deseado</strong>. Comprueba también que has escrito bien la dirección. El código caduca a los <strong>15 minutos</strong>; si ha pasado más tiempo, solicita uno nuevo. Si sigue sin llegar, escríbenos y lo activamos manualmente.",
+      "Revisa la carpeta de <strong>spam o correo no deseado</strong> y comprueba que escribiste bien tu dirección. Si el enlace caducó, solicita uno nuevo. Si la función de facturación todavía no está habilitada, los botones de suscripción permanecerán desactivados.",
   },
   {
     category: "Plan y límites",
     question: "Activé Pro pero en otro dispositivo aparece el plan gratuito",
     answer:
-      "La activación se guarda <strong>en el navegador donde verificaste el código</strong>. Si usas otro dispositivo, otro navegador o el modo incógnito, tendrás que verificar de nuevo con el mismo correo.",
+      "Inicia sesión con el mismo correo: la suscripción se consulta en línea desde tu cuenta. Tus vídeos siguen guardados localmente en el dispositivo y no se sincronizan entre navegadores.",
   },
 ];
 

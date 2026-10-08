@@ -3,10 +3,10 @@
 > **Grabador de pantalla profesional con superpoderes**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.6.3-blue.svg)](https://www.typescriptlang.org/)
-[![Vite](https://img.shields.io/badge/Vite-5.4.10-purple.svg)](https://vitejs.dev/)
-[![ESLint](https://img.shields.io/badge/ESLint-9.15.0-4B32C3.svg)](https://eslint.org/)
-[![Prettier](https://img.shields.io/badge/Prettier-3.3.3-F7B93E.svg)](https://prettier.io/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9.3-blue.svg)](https://www.typescriptlang.org/)
+[![Vite](https://img.shields.io/badge/Vite-7.3.7-purple.svg)](https://vitejs.dev/)
+[![ESLint](https://img.shields.io/badge/ESLint-8.57.1-4B32C3.svg)](https://eslint.org/)
+[![Prettier](https://img.shields.io/badge/Prettier-3.9.9-F7B93E.svg)](https://prettier.io/)
 
 ---
 
@@ -27,6 +27,7 @@
 - **💾 Gestión de Archivos**: Descargar o descartar el video con nombre automático.
 - **🔒 Bloqueo de Controles**: Evita cambios accidentales durante la grabación.
 - **📱 Diseño Responsive**: Adaptable a móviles y escritorio.
+- **💳 Suscripciones Pro**: Integración opcional Stripe + Supabase Auth; requiere configuración propia antes de habilitar cobros.
 
 ---
 
@@ -36,35 +37,46 @@
 
 - **Navegador moderno**: Google Chrome, Microsoft Edge o Firefox (recomendado Chrome para mejor soporte de MP4).
 - **Permisos**: La aplicación requiere permiso para acceder a la pantalla y al audio del sistema.
+- **Desarrollo**: Node.js 20.19 o superior. Para validar las Edge Functions, Deno 2.9.6.
 
 ### Instalación Local
 
 1. **Clonar el repositorio**:
+
    ```bash
-   git clone https://github.com/eslendere3official-stack/Grabador-de-pantalla.git
+   git clone https://github.com/laulau030416-create/Grabador-de-pantalla.git
    cd Grabador-de-pantalla
    ```
 
 2. **Instalar dependencias**:
+
    ```bash
    npm install
    ```
 
 3. **Iniciar el servidor de desarrollo**:
+
    ```bash
    npm run dev
    ```
-   > La aplicación se abrirá automáticamente en `https://localhost:3000`.
+
+   > Vite servirá la aplicación en `http://localhost:5173`.
 
 4. **Build para producción**:
+
    ```bash
    npm run build
    ```
+
    > Los archivos generados estarán en la carpeta `dist/`.
 
 5. **Desplegar**:
    - **GitHub Pages**: `npm run build` y sube la carpeta `dist/` a tu repositorio.
    - **Vercel/Netlify**: Conecta tu repositorio y despliega automáticamente.
+
+### Suscripciones Pro
+
+El checkout permanece deshabilitado hasta configurar Supabase y Stripe. Sigue la [guía de facturación](docs/billing-setup.md); no añadas claves secretas a Vite ni al repositorio. Empieza en modo de prueba y no publiques cobros reales antes de completar las pruebas y la configuración fiscal/legal.
 
 ---
 
@@ -72,55 +84,34 @@
 
 ```
 .
-├── public/                  # Archivos estáticos
-│   ├── index.html           # HTML principal
-│   └── favicon.svg          # Icono de la app
-├── src/                      # Código fuente
-│   ├── config/              # Configuración estática
-│   │   ├── constants.ts     # Constantes (resoluciones, FPS, etc.)
-│   │   └── defaults.ts      # Valores por defecto
-│   ├── core/                # Lógica principal
-│   │   ├── recorder.ts      # Grabador (MediaRecorder, Canvas)
-│   │   ├── stream.ts        # Manejo de streams
-│   │   └── index.ts         # Exportaciones
-│   ├── ui/                  # Interfaz de usuario
-│   │   ├── components/      # Componentes reutilizables
-│   │   │   ├── Button.ts    # Botón personalizado
-│   │   │   ├── Select.ts    # Select personalizado
-│   │   │   └── Toggle.ts    # Toggle (switch)
-│   │   ├── dashboard.ts     # Lógica del dashboard
-│   │   └── index.ts         # Exportaciones
-│   ├── utils/               # Funciones auxiliares
-│   │   ├── format.ts        # Formateo de fechas, tamaños
-│   │   ├── cleanup.ts       # Limpieza de recursos
-│   │   └── detect.ts        # Detección de APIs
-│   ├── types/               # Tipos TypeScript
-│   │   └── index.ts         # Definición de tipos
-│   ├── styles/              # Estilos
-│   │   └── main.css         # Estilos principales
-│   └── index.ts             # Punto de entrada
-├── tests/                   # Pruebas
-│   ├── unit/                # Tests unitarios
-│   └── e2e/                 # Tests E2E
-├── .eslintrc.json           # Configuración de ESLint
-├── .prettierrc              # Configuración de Prettier
-├── tsconfig.json            # Configuración de TypeScript
-├── vite.config.ts           # Configuración de Vite
-├── package.json             # Dependencias y scripts
-└── README.md                # Este archivo
+├── index.html
+├── public/                  # Logo e iconos
+├── src/
+│   ├── config/              # Planes, límites y opciones
+│   ├── core/                # Grabación, biblioteca, uso y billing
+│   ├── ui/                  # Dashboard y componentes
+│   ├── utils/                # Detección y formateo
+│   └── styles/               # CSS de la aplicación
+├── supabase/
+│   ├── functions/            # Checkout, portal y webhook Stripe
+│   └── migrations/           # Tablas y RLS de billing
+├── docs/billing-setup.md     # Configuración de Stripe + Supabase
+├── .github/workflows/ci.yml
+├── package.json
+└── README.md
 ```
 
 ---
 
 ## 🛠️ Tecnologías Utilizadas
 
-| Tecnología       | Versión  | Uso                          |
-|------------------|----------|------------------------------|
-| TypeScript       | 5.6.3    | Lenguaje principal           |
-| Vite             | 5.4.10   | Bundler y servidor de desarrollo |
-| ESLint           | 9.15.0   | Linting                      |
-| Prettier         | 3.3.3    | Formateo de código           |
-| Vitest           | 2.1.3    | Testing                      |
+| Tecnología | Versión | Uso                              |
+| ---------- | ------- | -------------------------------- |
+| TypeScript | 5.9.3   | Lenguaje principal               |
+| Vite       | 7.3.7   | Bundler y servidor de desarrollo |
+| ESLint     | 8.57.1  | Linting                          |
+| Prettier   | 3.9.9   | Formateo de código               |
+| Vitest     | 4.1.11  | Testing                          |
 
 ### APIs del Navegador
 
@@ -135,14 +126,14 @@
 
 ### Paleta de Colores
 
-| Color          | Hex       | Uso                          |
-|----------------|-----------|------------------------------|
-| Fondo oscuro   | `#0f172a` | Fondo principal              |
-| Tarjeta        | `rgba(30, 41, 59, 0.7)` | Paneles con Glassmorphism |
-| Acento         | `#6366f1` | Botones principales         |
-| Peligro        | `#ef4444` | Botones de error/stop        |
-| Texto principal| `#f1f5f9` | Texto principal              |
-| Texto secundario| `#94a3b8` | Texto muted                  |
+| Color            | Hex                     | Uso                       |
+| ---------------- | ----------------------- | ------------------------- |
+| Fondo oscuro     | `#0f172a`               | Fondo principal           |
+| Tarjeta          | `rgba(30, 41, 59, 0.7)` | Paneles con Glassmorphism |
+| Acento           | `#6366f1`               | Botones principales       |
+| Peligro          | `#ef4444`               | Botones de error/stop     |
+| Texto principal  | `#f1f5f9`               | Texto principal           |
+| Texto secundario | `#94a3b8`               | Texto muted               |
 
 ### Tipografía
 
@@ -164,11 +155,20 @@
 npm test
 ```
 
-### Tipos de pruebas
+### Validaciones
 
-1. **Unit Tests**: Funciones puras (ej: `detectBestFormat`, `generateFilename`).
-2. **Integration Tests**: Flujo de grabación completo.
-3. **E2E Tests**: Simulación de interacción del usuario (con Playwright o Cypress).
+```bash
+npm run typecheck
+npm run lint
+npm run format:check
+npm test -- --run
+npm run test:coverage
+npm run build
+npm run check:functions  # requiere Deno 2.9.6
+npm audit --audit-level=moderate
+```
+
+Los tests Vitest viven junto a los módulos en `src/`. La integración Stripe/Supabase requiere además pruebas de sandbox con credenciales propias; no se ejecutan contra cuentas externas en CI.
 
 ---
 
@@ -201,7 +201,7 @@ Este proyecto está bajo la **Licencia MIT**. Consulta el archivo [LICENSE](LICE
 
 Si encuentras un error o tienes una sugerencia, abre un **Issue** en el repositorio:
 
-[🐛 Reportar Issue](https://github.com/eslendere3official-stack/Grabador-de-pantalla/issues)
+[🐛 Reportar Issue](https://github.com/laulau030416-create/Grabador-de-pantalla/issues)
 
 ---
 

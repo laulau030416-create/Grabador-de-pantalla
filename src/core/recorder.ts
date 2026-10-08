@@ -258,7 +258,7 @@ export class ScreenRecorder {
 
       // La misma promesa es esperada por startRecording y stopRecording.
       const resultPromise = new Promise<RecordingResult>((resolve, reject) => {
-        this.recorder!.onstop = () => {
+        this.recorder!.onstop = (): void => {
           try {
             this.stopRenderLoop();
             const blob = new Blob(this.data, { type: mimeType });
@@ -282,7 +282,7 @@ export class ScreenRecorder {
           }
         };
 
-        this.recorder!.onerror = (event: Event) => {
+        this.recorder!.onerror = (event: Event): void => {
           const error =
             (event as Event & { error?: Error }).error ?? new Error("Error desconocido");
           this.state.error = error;
@@ -293,7 +293,7 @@ export class ScreenRecorder {
       });
       this.recordingResultPromise = resultPromise;
 
-      this.recorder.ondataavailable = (event: BlobEvent) => {
+      this.recorder.ondataavailable = (event: BlobEvent): void => {
         if (event.data.size > 0) {
           this.data.push(event.data);
         }
@@ -308,7 +308,7 @@ export class ScreenRecorder {
       this.emitEvent("start");
 
       // Manejar finalización de la captura (ej: usuario cierra la pestaña)
-      this.displayStream.getVideoTracks()[0].onended = () => {
+      this.displayStream.getVideoTracks()[0].onended = (): void => {
         if (this.recorder && this.recorder.state !== "inactive") {
           void this.stopRecording();
         }
@@ -389,7 +389,7 @@ export class ScreenRecorder {
     // alimentar la vista previa antes de que empiece la grabación.
     this.renderActive = true;
 
-    const renderFrame = () => {
+    const renderFrame = (): void => {
       if (!this.renderActive || !this.sourceVideo || !this.ctx || !this.canvas) {
         return;
       }
