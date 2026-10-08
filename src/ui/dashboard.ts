@@ -150,6 +150,7 @@ export class Dashboard {
 
   // Estado
   private currentRecording: RecordingResult | null = null;
+  private isStarting = false;
   private currentDuration = 0;
   private savedCurrentToLibrary = false;
   private isRecording = false;
@@ -842,7 +843,16 @@ export class Dashboard {
     recorder.subscribe((event, data) => {
       switch (event) {
         case "start":
+          this.isStarting = false;
           this.isRecording = true;
+          this.recordStartTime = Date.now();
+          this.recCounter.style.display = "inline-flex";
+          this.startTick();
+          this.stopBtn.disabled = false;
+          this.liveIndicator.style.display = "flex";
+          this.statusBadge.classList.add("active");
+          this.statusBadge.innerHTML = '<span class="pulse-dot"></span> Grabando';
+          document.querySelector(".rec-dot")?.classList.add("live");
           break;
         case "stop":
           this.handleRecordingStop(data as RecordingResult);
@@ -995,14 +1005,29 @@ export class Dashboard {
    * Inicia la grabación aplicando el límite del plan.
    */
   private async handleStartRecording(): Promise<void> {
-    if (this.isRecording) return;
+    if (this.isRecording || this.isStarting) return;
 
     if (!canRecord()) {
       this.openProModal(true);
       return;
     }
 
+    if (this.currentRecording) {
+      try {
+        URL.revokeObjectURL(this.currentRecording.url);
+      } catch {
+        // El navegador puede haber revocado ya la URL.
+      }
+      this.currentRecording = null;
+      this.savedCurrentToLibrary = false;
+    }
+
     try {
+      this.isStarting = true;
+      this.remainingAtStart = getRemainingSeconds();
+      this.recordLimitSeconds = getRecordingLimitSeconds();
+      this.limitReached = false;
+      this.elapsedSeconds = 0;
       this.lockControls(true);
       this.updateUIForRecording();
 
@@ -1028,21 +1053,15 @@ export class Dashboard {
         await this.runCountdown();
       }
 
-      this.isRecording = true;
-      this.remainingAtStart = getRemainingSeconds();
-      this.recordLimitSeconds = getRecordingLimitSeconds();
-      this.limitReached = false;
-      this.elapsedSeconds = 0;
-      this.recordStartTime = Date.now();
       this.recLimitEl.textContent = formatClock(this.recordLimitSeconds);
-      this.recCounter.style.display = "inline-flex";
-      this.startTick();
 
       this.currentRecording = await recorder.startRecording(config, this.previewVideo);
     } catch (error) {
       console.error("Error al iniciar grabación:", error);
+      const shouldHandleError = this.isStarting || this.isRecording;
+      this.isStarting = false;
       this.stopTick();
-      this.handleRecordingError(error as Error);
+      if (shouldHandleError) this.handleRecordingError(error as Error);
     }
   }
 
@@ -1129,6 +1148,7 @@ export class Dashboard {
    */
   private handleRecordingStop(result: RecordingResult): void {
     this.isRecording = false;
+    this.isStarting = false;
     this.stopTick();
     this.currentRecording = result;
     this.currentDuration = this.elapsedSeconds;
@@ -1150,6 +1170,7 @@ export class Dashboard {
    */
   private handleRecordingError(error: Error): void {
     this.isRecording = false;
+    this.isStarting = false;
     this.stopTick();
     this.lockControls(false);
     this.resetUI();
@@ -1228,8 +1249,9 @@ export class Dashboard {
    * Descarta la grabación actual.
    */
   private handleDiscard(): void {
-    // Solo se libera la memoria si no quedó guardada en la biblioteca.
-    if (this.currentRecording && !this.savedCurrentToLibrary) {
+    // La biblioteca crea su propia Object URL; esta URL pertenece al reproductor
+    // principal y debe liberarse tanto si se guardó como si no.
+    if (this.currentRecording) {
       try {
         URL.revokeObjectURL(this.currentRecording.url);
       } catch {
@@ -1270,16 +1292,16 @@ export class Dashboard {
     this.placeholderText.style.display = "none";
     this.resultVideo.style.display = "none";
     this.previewVideo.style.display = "block";
-    this.liveIndicator.style.display = "flex";
+    this.liveIndicator.style.display = "none";
     this.startBtn.style.display = "none";
     this.stopBtn.style.display = "flex";
+    this.stopBtn.disabled = true;
     this.actionFooter.style.display = "none";
     this.recTimer.textContent = "00:00:00";
     this.recElapsed.textContent = "00:00";
-    this.statusBadge.classList.add("active");
-    this.statusBadge.innerHTML = '<span class="pulse-dot"></span> Grabando';
-    // El punto del título solo se enciende en rojo cuando se está grabando.
-    document.querySelector(".rec-dot")?.classList.add("live");
+    this.statusBadge.classList.remove("active");
+    this.statusBadge.textContent = "Preparando captura...";
+    document.querySelector(".rec-dot")?.classList.remove("live");
 
     const limitLabel = document.getElementById("clipLimitLabel");
     if (limitLabel) {
@@ -1307,6 +1329,7 @@ export class Dashboard {
     this.liveIndicator.style.display = "none";
     this.recCounter.style.display = "none";
     this.stopBtn.style.display = "none";
+    this.stopBtn.disabled = false;
     this.actionFooter.style.display = "none";
     this.startBtn.style.display = "flex";
     this.panControl.style.display = "none";

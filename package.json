@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:watch": "vitest watch",
-    "test:coverage": "vitest --coverage",
+    "test:coverage": "vitest run --coverage",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
     "format": "prettier --write \"src/**/*.{ts,css}\" \"index.html\"",
@@ -24,14 +24,14 @@
     "@types/node": "^22.9.0",
     "@typescript-eslint/eslint-plugin": "^8.65.0",
     "@typescript-eslint/parser": "^8.65.0",
-    "@vitejs/plugin-basic-ssl": "^1.1.0",
+    "@vitest/coverage-v8": "^4.1.11",
     "eslint": "^8.57.1",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-prettier": "^5.2.1",
     "jsdom": "^25.0.1",
     "prettier": "^3.3.3",
-    "vite": "^5.4.10",
-    "vitest": "^2.1.3"
+    "vite": "^7.3.7",
+    "vitest": "^4.1.11"
   },
   "repository": {
     "type": "git",
@@ -53,6 +53,6 @@
   },
   "homepage": "https://github.com/eslendere3official-stack/Grabador-de-pantalla",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.19.0"
   }
 }
