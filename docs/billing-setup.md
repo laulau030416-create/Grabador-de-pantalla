@@ -1,6 +1,8 @@
-# Integración comercial: Stripe + Supabase
+# Prototipo de facturación: Stripe + Supabase
 
-Este repositorio incluye una base para suscripciones mensuales/anuales. **No crea productos, no despliega funciones, no conecta cuentas y no activa cobros.** Hay que completar la configuración de Supabase y Stripe antes de habilitar el checkout.
+Este repositorio incluye una base para suscripciones mensuales/anuales. **No crea productos, no despliega funciones, no conecta cuentas y no activa cobros.**
+
+> **No es la integración elegida para el lanzamiento.** La propietaria está validando una pasarela que admita un negocio colombiano y sus clientes de LATAM. El código Stripe de esta rama es solo una base técnica provisional: no configures claves reales ni habilites cobros de producción con estas instrucciones. Al decidir el proveedor, se conservarán —si siguen siendo adecuadas— la autenticación, las reglas RLS y el modelo de entitlement; checkout, portal, webhooks, secretos y pruebas deberán adaptarse al proveedor seleccionado.
 
 ## Arquitectura
 

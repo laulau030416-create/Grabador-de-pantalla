@@ -27,7 +27,7 @@ export const STORAGE_KEYS = {
   MEMBER_SINCE: "screenrec_since_v1",
 } as const;
 
-// Los importes reales los fija Stripe por país/moneda y se muestran en Checkout.
+// El proveedor, los importes y las monedas se definirán antes de habilitar cobros.
 export const PRO = {
   priceLabel: "Suscripción mensual o anual",
   features: [
@@ -224,7 +224,7 @@ export const FAQ_ITEMS: { category: FaqCategory; question: string; answer: strin
     category: "Biblioteca y datos",
     question: "¿Dónde se guardan mis grabaciones?",
     answer:
-      "En tu propio equipo. <strong>Los vídeos no se suben a ningún servidor</strong>: se procesan y se guardan dentro de tu navegador. Al terminar puedes descargarlo o pulsar <strong>Guardar en biblioteca</strong>. Si usas una cuenta Pro, el correo y los datos de la suscripción se procesan de forma separada por Supabase y Stripe; el contenido de tus vídeos no se envía.",
+      "En tu propio equipo. <strong>Los vídeos no se suben a ningún servidor</strong>: se procesan y se guardan dentro de tu navegador. Al terminar puedes descargarlo o pulsar <strong>Guardar en biblioteca</strong>. Si usas una cuenta Pro, el correo y los datos de facturación podrán procesarse por separado mediante los servicios de autenticación y pago que se habiliten; el contenido de tus vídeos no se envía.",
   },
   {
     category: "Biblioteca y datos",
@@ -272,7 +272,7 @@ export const FAQ_ITEMS: { category: FaqCategory; question: string; answer: strin
     category: "Plan y límites",
     question: "¿Cómo activo el plan Pro?",
     answer:
-      "Cuando la facturación esté habilitada, pulsa <strong>Desbloquear Pro</strong>, elige un plan mensual o anual e inicia sesión mediante un enlace seguro enviado a tu correo. Completa el pago en la página alojada de Stripe. Pro se activa al confirmarse la suscripción; el precio y la moneda se muestran antes de pagar.",
+      "Cuando la facturación esté habilitada, pulsa <strong>Desbloquear Pro</strong>, elige un plan mensual o anual e inicia sesión mediante un enlace seguro enviado a tu correo. Completa el pago en la página segura del proveedor disponible. Pro se activa cuando el servidor confirma la suscripción; el precio, la moneda y la renovación se mostrarán antes de pagar.",
   },
   {
     category: "Plan y límites",

@@ -1926,7 +1926,7 @@ export class Dashboard {
       <h2>${ICONS.sparkles} SCREENREC Pro</h2>
       <p class="modal-sub">${subtitle}</p>
       <div class="modal-price">${PRO.priceLabel}</div>
-      <p class="modal-sub">El importe y la moneda se muestran en la página segura de Stripe.</p>
+      <p class="modal-sub">El importe y la moneda se mostrarán antes de confirmar el pago.</p>
       <ul class="modal-features">${features}</ul>
       ${configured ? "" : '<p class="modal-error">El checkout todavía no está configurado.</p>'}
       <div class="modal-actions">
@@ -1975,7 +1975,7 @@ export class Dashboard {
       window.location.assign(url);
     } catch (error) {
       console.error(
-        "No se pudo iniciar Stripe Checkout",
+        "No se pudo iniciar el checkout",
         error instanceof Error ? error.message : "unknown error"
       );
       this.showAlertModal(
@@ -2002,13 +2002,13 @@ export class Dashboard {
 
     if (isProEntitled) {
       this.billingReturnMessageShown = true;
-      this.showAlertModal("¡SCREENREC Pro está activo!", "Stripe confirmó tu suscripción.");
+      this.showAlertModal("¡SCREENREC Pro está activo!", "Se confirmó tu suscripción.");
       this.clearBillingReturnQuery();
     } else if (!this.billingReturnMessageShown) {
       this.billingReturnMessageShown = true;
       this.showAlertModal(
         "Confirmando pago",
-        "Stripe recibió tu operación. Estamos verificando la suscripción; la página se actualizará automáticamente. Si no cambia en unos segundos, vuelve a cargarla."
+        "Recibimos la operación y estamos verificando la suscripción; la página se actualizará automáticamente. Si no cambia en unos segundos, vuelve a cargarla."
       );
     }
   }
@@ -2026,7 +2026,7 @@ export class Dashboard {
   private openBillingSignInModal(interval: BillingInterval): void {
     this.modalBox.innerHTML = `
       <h2>${ICONS.mail} Inicia sesión para suscribirte</h2>
-      <p class="modal-sub">Te enviaremos un enlace seguro de acceso. El estado Pro solo se activa cuando Stripe confirma la suscripción.</p>
+      <p class="modal-sub">Te enviaremos un enlace seguro de acceso. El estado Pro solo se activa cuando el servidor confirma la suscripción.</p>
       <input type="email" class="modal-input" id="billingEmail" placeholder="tu@email.com" autocomplete="email" required />
       <div class="modal-error" id="billingEmailError"></div>
       <div class="modal-actions">
@@ -2071,7 +2071,7 @@ export class Dashboard {
     });
   }
 
-  /** Abre el portal alojado de Stripe para una suscripción activa. */
+  /** Abre el portal de facturación configurado para una suscripción activa. */
   private async openBillingPortal(): Promise<void> {
     try {
       const url = await createBillingPortalUrl();
@@ -2079,7 +2079,7 @@ export class Dashboard {
     } catch {
       this.showAlertModal(
         "No se pudo abrir la facturación",
-        "Inicia sesión de nuevo o revisa la configuración del portal de cliente en Stripe."
+        "Inicia sesión de nuevo o revisa la configuración del portal de facturación."
       );
     }
   }

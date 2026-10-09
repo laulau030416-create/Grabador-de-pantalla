@@ -27,7 +27,7 @@
 - **💾 Gestión de Archivos**: Descargar o descartar el video con nombre automático.
 - **🔒 Bloqueo de Controles**: Evita cambios accidentales durante la grabación.
 - **📱 Diseño Responsive**: Adaptable a móviles y escritorio.
-- **💳 Suscripciones Pro**: Integración opcional Stripe + Supabase Auth; requiere configuración propia antes de habilitar cobros.
+- **💳 Suscripciones Pro**: base de autenticación y acceso preparada; la pasarela para LATAM está pendiente de selección y no hay cobros activos.
 
 ---
 
@@ -76,7 +76,7 @@
 
 ### Suscripciones Pro
 
-El checkout permanece deshabilitado hasta configurar Supabase y Stripe. Sigue la [guía de facturación](docs/billing-setup.md); no añadas claves secretas a Vite ni al repositorio. Empieza en modo de prueba y no publiques cobros reales antes de completar las pruebas y la configuración fiscal/legal.
+El checkout permanece deshabilitado mientras se elige y configura una pasarela compatible con el negocio en Colombia y sus clientes de LATAM. La implementación Stripe/Supabase del repositorio es provisional y no debe usarse para cobrar en producción. Consulta la [guía de preparación para el lanzamiento](docs/launch-readiness-latam.md). Nunca añadas claves secretas a Vite ni al repositorio.
 
 ---
 
@@ -93,9 +93,10 @@ El checkout permanece deshabilitado hasta configurar Supabase y Stripe. Sigue la
 │   ├── utils/                # Detección y formateo
 │   └── styles/               # CSS de la aplicación
 ├── supabase/
-│   ├── functions/            # Checkout, portal y webhook Stripe
+│   ├── functions/            # Base provisional de facturación (proveedor por confirmar)
 │   └── migrations/           # Tablas y RLS de billing
-├── docs/billing-setup.md     # Configuración de Stripe + Supabase
+├── docs/billing-setup.md     # Prototipo provisional Stripe + Supabase
+├── docs/launch-readiness-latam.md
 ├── .github/workflows/ci.yml
 ├── package.json
 └── README.md
@@ -168,7 +169,7 @@ npm run check:functions  # requiere Deno 2.9.6
 npm audit --audit-level=moderate
 ```
 
-Los tests Vitest viven junto a los módulos en `src/`. La integración Stripe/Supabase requiere además pruebas de sandbox con credenciales propias; no se ejecutan contra cuentas externas en CI.
+Los tests Vitest viven junto a los módulos en `src/`. La integración del proveedor de pagos requiere además pruebas de sandbox con credenciales propias; no se ejecutan contra cuentas externas en CI.
 
 ---
 

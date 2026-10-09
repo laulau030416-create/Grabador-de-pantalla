@@ -76,6 +76,7 @@ describe("marcadores Pro heredados en localStorage", () => {
     expect((document.getElementById("annualCheckoutBtn") as HTMLButtonElement).disabled).toBe(true);
     expect(document.getElementById("modalVerifyBtn")).toBeNull();
     expect(document.body.textContent).not.toMatch(/Activar Pro|Verificar por correo/);
+    expect(document.body.textContent).not.toMatch(/Stripe/i);
   });
 
   it("ignora el correo antiguo guardado en el navegador", async () => {
