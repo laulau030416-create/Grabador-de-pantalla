@@ -16,6 +16,12 @@ function stubSupport(supported: string[]): void {
 }
 
 describe("isFormatSupported", () => {
+  it("devuelve false sin lanzar si MediaRecorder no existe", () => {
+    vi.stubGlobal("MediaRecorder", undefined);
+    expect(isFormatSupported("mp4")).toBe(false);
+    expect(isFormatSupported("webm")).toBe(false);
+  });
+
   it("detecta soporte de mp4", () => {
     stubSupport(["mp4"]);
     expect(isFormatSupported("mp4")).toBe(true);
@@ -30,6 +36,11 @@ describe("isFormatSupported", () => {
 });
 
 describe("resolveFormat", () => {
+  it("usa un fallback seguro cuando MediaRecorder no existe", () => {
+    vi.stubGlobal("MediaRecorder", undefined);
+    expect(resolveFormat("mp4")).toMatchObject({ ext: "webm", fellBack: true });
+  });
+
   it("devuelve el formato pedido si está soportado", () => {
     stubSupport(["mp4", "webm"]);
     const result = resolveFormat("mp4");

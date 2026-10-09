@@ -1,15 +1,19 @@
 /**
  * Módulo de control del plan gratuito para SCREENREC.
  *
- * Gestiona los créditos diarios de grabación gratuita (3 minutos) usando
- * localStorage. Los créditos se reinician automáticamente cada día.
+ * Gestiona los créditos diarios gratuitos (3 minutos) usando localStorage.
+ * La fecha/consumo gratuito sigue siendo local y puede alterarse por usuarios
+ * avanzados; el entitlement Pro se refresca por separado desde Supabase.
  *
- * NOTA: al ser un sitio estático (sin servidor), este control vive en el
- * navegador y es evitable por usuarios avanzados. Es suficiente para un MVP;
- * para un control estricto se necesitaría un backend.
+ * NOTA: la grabación y el consumo ocurren enteramente en el navegador. Este
+ * control de cuota es una limitación de producto, no una barrera antifraude.
  */
 
 import { FREE_DAILY_SECONDS, FREE_MAX_RECORDING_SECONDS, STORAGE_KEYS } from "@/config/constants";
+
+// Solo se actualiza al consultar billing_subscriptions con una sesión Supabase.
+// No se persiste en localStorage, que cualquier usuario puede editar.
+let serverVerifiedPro = false;
 
 interface UsageRecord {
   date: string;
@@ -79,29 +83,20 @@ function saveUsage(record: UsageRecord): void {
 }
 
 /**
- * Indica si el usuario tiene el plan Pro activo (desbloqueo local).
+ * Indica si el usuario tiene el plan Pro activo según el entitlement del servidor.
  * @returns {boolean} true si es Pro.
  */
 export function isPro(): boolean {
-  if (!hasStorage()) return false;
-  try {
-    return localStorage.getItem(STORAGE_KEYS.PRO) === "true";
-  } catch {
-    return false;
-  }
+  return serverVerifiedPro;
 }
 
 /**
- * Activa o desactiva el plan Pro (desbloqueo local).
- * @param {boolean} value - true para activar Pro.
+ * Actualiza en memoria el resultado de una consulta autenticada al backend.
+ * El valor anterior de localStorage nunca concede acceso.
+ * @param {boolean} value - entitlement devuelto por billing_subscriptions.
  */
-export function setPro(value: boolean): void {
-  if (!hasStorage()) return;
-  try {
-    localStorage.setItem(STORAGE_KEYS.PRO, value ? "true" : "false");
-  } catch {
-    // Silencioso.
-  }
+export function setProFromEntitlement(value: boolean): void {
+  serverVerifiedPro = value;
 }
 
 /**

@@ -13,7 +13,6 @@ export {
 } from "./stream";
 export {
   isPro,
-  setPro,
   getDailyLimitSeconds,
   getUsedSeconds,
   getRemainingSeconds,
@@ -33,11 +32,3 @@ export {
   IndexedDbStore,
 } from "./storage";
 export type { RecordingStore, StoredRecording } from "./storage";
-export {
-  otpService,
-  OtpService,
-  generateOtpCode,
-  getOtpChannel,
-  resolveOtpChannel,
-  OTP_MAX_ATTEMPTS,
-} from "./otp";

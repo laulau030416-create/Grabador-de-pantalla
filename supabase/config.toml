@@ -1,0 +1,11 @@
+project_id = "screenrec"
+
+[functions.create-checkout-session]
+verify_jwt = true
+
+[functions.create-portal-session]
+verify_jwt = true
+
+# Stripe autentica este endpoint mediante Stripe-Signature sobre el body original.
+[functions.stripe-webhook]
+verify_jwt = false

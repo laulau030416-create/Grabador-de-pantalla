@@ -29,13 +29,13 @@ function fakeCtx(): CanvasRenderingContext2D & {
     fill: vi.fn(),
     stroke: vi.fn(),
     clearRect: vi.fn(),
-    arc: (x: number, y: number, r: number) => {
+    arc: (x: number, y: number, r: number): void => {
       arcCalls.push([x, y, r]);
     },
-    clip: function (this: { clipCalls: number }) {
+    clip: function (this: { clipCalls: number }): void {
       this.clipCalls += 1;
     },
-    drawImage: (...args: unknown[]) => {
+    drawImage: (...args: unknown[]): void => {
       drawCalls.push(args.slice(1) as number[]);
     },
   };
@@ -157,20 +157,22 @@ describe("combineStreams con micrófono", () => {
       }
     );
 
-    const destination = { stream: { getAudioTracks: () => [{ kind: "audio" }] } };
+    const destination = {
+      stream: { getAudioTracks: (): { kind: string }[] => [{ kind: "audio" }] },
+    };
     vi.stubGlobal(
       "AudioContext",
       class {
         public state = "running";
         createMediaStreamDestination = (): typeof destination => destination;
         createMediaStreamSource = (): { connect: () => void } => ({
-          connect: () => {
+          connect: (): void => {
             connections += 1;
           },
         });
         createGain = (): { gain: { value: number }; connect: () => void } => ({
           gain: { value: 1 },
-          connect: () => {
+          connect: (): void => {
             connections += 1;
           },
         });

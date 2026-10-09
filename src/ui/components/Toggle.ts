@@ -24,6 +24,7 @@ export class Toggle {
 
     // Crear span para el label
     const labelSpan = document.createElement("span");
+    labelSpan.id = `${props.id}-label`;
     if (props.labelAsHtml) {
       labelSpan.innerHTML = props.label;
     } else {
@@ -38,6 +39,7 @@ export class Toggle {
     this.input = document.createElement("input");
     this.input.type = "checkbox";
     this.input.id = props.id;
+    this.input.setAttribute("aria-labelledby", labelSpan.id);
     this.input.checked = props.checked || false;
     this.input.disabled = props.disabled || false;
 

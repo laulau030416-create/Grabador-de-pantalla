@@ -13,12 +13,15 @@ afterEach(() => {
 // jsdom no implementa URL.revokeObjectURL, así que lo definimos como mock espiable.
 beforeEach(() => {
   URL.revokeObjectURL = vi.fn();
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
 });
 
 function createFakeStream(trackCount: number): { stream: MediaStream; stops: number[] } {
   const stops: number[] = [];
   const tracks = Array.from({ length: trackCount }, (_, i) => ({
-    stop: () => stops.push(i),
+    stop: (): void => {
+      stops.push(i);
+    },
   }));
   const stream = {
     getTracks: () => tracks,

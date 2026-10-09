@@ -25,6 +25,8 @@ function fakeStream(label: string, withAudio = false): MediaStream {
 
 const displayStream = fakeStream("display");
 const canvasStream = fakeStream("canvas");
+let pauseRecorderSpy: () => void;
+let resumeRecorderSpy: () => void;
 
 beforeEach(() => {
   vi.stubGlobal("navigator", {
@@ -33,14 +35,29 @@ beforeEach(() => {
 
   // MediaRecorder mínimo que no emite datos.
   class FakeRecorder {
-    public state = "recording";
-    public ondataavailable: unknown = null;
-    public onstop: unknown = null;
-    public onerror: unknown = null;
-    public start = vi.fn();
-    public stop = vi.fn();
+    public state = "inactive";
+    public ondataavailable: ((event: BlobEvent) => void) | null = null;
+    public onstop: ((event: Event) => void) | null = null;
+    public onerror: ((event: Event) => void) | null = null;
+    public start = vi.fn(() => {
+      this.state = "recording";
+    });
+    public stop = vi.fn(() => {
+      this.state = "inactive";
+      this.onstop?.(new Event("stop"));
+    });
+    public pause = (): void => {
+      pauseRecorderSpy();
+      this.state = "paused";
+    };
+    public resume = (): void => {
+      resumeRecorderSpy();
+      this.state = "recording";
+    };
     static isTypeSupported = (type: string): boolean => type.includes("webm");
   }
+  pauseRecorderSpy = vi.fn();
+  resumeRecorderSpy = vi.fn();
   vi.stubGlobal("MediaRecorder", FakeRecorder);
 
   // El canvas devuelve un stream reconocible.
@@ -126,6 +143,30 @@ describe("Vista previa durante la grabación", () => {
 
     // Sin este primer dibujo, el stream del canvas no tiene imagen que mostrar.
     expect(drawImage).toHaveBeenCalled();
+  });
+
+  it("pausa y reanuda MediaRecorder y devuelve el resultado al detener", async () => {
+    vi.stubGlobal("URL", {
+      createObjectURL: vi.fn(() => "blob:recording-result"),
+      revokeObjectURL: vi.fn(),
+    });
+
+    const recorder = ScreenRecorder.getInstance();
+    const started = recorder.startRecording(DEFAULT_CONFIG, document.createElement("video"));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    recorder.pauseRecording();
+    expect(pauseRecorderSpy).toHaveBeenCalledOnce();
+    expect(recorder.getState().isPaused).toBe(true);
+
+    recorder.resumeRecording();
+    expect(resumeRecorderSpy).toHaveBeenCalledOnce();
+    expect(recorder.getState().isPaused).toBe(false);
+
+    const stopped = recorder.stopRecording();
+    const [startResult, stopResult] = await Promise.all([started, stopped]);
+    expect(stopResult).toEqual(startResult);
+    expect(startResult.url).toBe("blob:recording-result");
   });
 
   it("el control de enfoque limita el valor entre 0 y 1", () => {

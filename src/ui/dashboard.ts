@@ -6,18 +6,25 @@
 import {
   recorder,
   isPro,
-  setPro,
   getRemainingSeconds,
   getDailyLimitSeconds,
   getRecordingLimitSeconds,
   consumeSeconds,
   canRecord,
   library,
-  otpService,
-  getOtpChannel,
   estimateStorage,
   requestPersistentStorage,
 } from "@/core";
+import { setProFromEntitlement } from "@/core/usage";
+import {
+  createBillingPortalUrl,
+  createCheckoutUrl,
+  isBillingConfigured,
+  sendBillingMagicLink,
+  signOutBillingUser,
+  watchBillingStatus,
+} from "@/core/billing";
+import type { BillingInterval } from "@/core/billing";
 import {
   DEFAULT_CONFIG,
   FREE_DEFAULTS,
@@ -36,7 +43,6 @@ import {
   FAQ_ITEMS,
   FAQ_CATEGORIES,
   PRO,
-  OTP_LENGTH,
   STORAGE_KEYS,
   ICONS,
 } from "@/config/constants";
@@ -47,7 +53,6 @@ import {
   canCaptureScreen,
 } from "@/utils/detect";
 import { formatTime, formatFileSize } from "@/utils/format";
-import { validateEmail } from "@/utils/email";
 import { Select, type SelectOption } from "./components/Select";
 import { Toggle } from "./components/Toggle";
 import type { RecordingConfig, RecordingResult, WebcamPosition, WebcamSize } from "@/types";
@@ -150,6 +155,7 @@ export class Dashboard {
 
   // Estado
   private currentRecording: RecordingResult | null = null;
+  private isStarting = false;
   private currentDuration = 0;
   private savedCurrentToLibrary = false;
   private isRecording = false;
@@ -163,6 +169,9 @@ export class Dashboard {
   private benefitInterval: number | null = null;
   private currentView = "dashboard";
   private renamingId: string | null = null;
+  private currentUserEmail: string | null = null;
+  private checkoutInProgress = false;
+  private billingReturnMessageShown = false;
 
   constructor() {
     this.initElements();
@@ -181,6 +190,19 @@ export class Dashboard {
     this.applyCaptureAvailability();
     this.ensureMemberSince();
     this.updateUserChip();
+    watchBillingStatus(
+      (status) => {
+        this.currentUserEmail = status.email;
+        setProFromEntitlement(status.isPro);
+        this.refreshProGating();
+        this.updatePlanCard();
+        this.updateUserChip();
+        this.handleBillingReturn(status.isPro);
+        if (this.currentView === "profile") this.renderProfile();
+        if (this.currentView === "settings") this.renderSettings();
+      },
+      (interval) => void this.startCheckout(interval)
+    );
   }
 
   /**
@@ -462,7 +484,7 @@ export class Dashboard {
   }
 
   /**
-   * Reconstruye las opciones tras activar Pro (quita los candados).
+   * Reconstruye las opciones cuando cambia el entitlement Pro del servidor.
    */
   private refreshProGating(): void {
     const resolution = this.resolutionSelect.getValue();
@@ -499,7 +521,7 @@ export class Dashboard {
       labelAsHtml: true,
       options: Object.entries(ORIENTATIONS).map(([value, { label }]) => ({ value, label })),
       value: DEFAULT_CONFIG.orientation,
-      onChange: (value) => this.handleOrientationChange(value as "horizontal" | "vertical"),
+      onChange: (value): void => this.handleOrientationChange(value as "horizontal" | "vertical"),
     });
 
     this.formatSelect = new Select({
@@ -508,7 +530,7 @@ export class Dashboard {
       labelAsHtml: true,
       options: FORMAT_OPTIONS.map((option) => ({ value: option.value, label: option.label })),
       value: DEFAULT_CONFIG.format,
-      onChange: () => {
+      onChange: (): void => {
         this.updateFormatInfo();
         this.updateFormatPill();
       },
@@ -520,7 +542,7 @@ export class Dashboard {
       labelAsHtml: true,
       options: this.buildGatedOptions("resolution"),
       value: initial.resolution,
-      onChange: () =>
+      onChange: (): void =>
         this.handleGatedChange("resolution", this.resolutionSelect, () => this.updateQualityPill()),
     });
 
@@ -530,7 +552,7 @@ export class Dashboard {
       labelAsHtml: true,
       options: this.buildGatedOptions("framerate"),
       value: initial.framerate,
-      onChange: () =>
+      onChange: (): void =>
         this.handleGatedChange("framerate", this.framerateSelect, () => this.updateQualityPill()),
     });
 
@@ -540,7 +562,7 @@ export class Dashboard {
       labelAsHtml: true,
       options: this.buildGatedOptions("bitrate"),
       value: initial.bitrate,
-      onChange: () => this.handleGatedChange("bitrate", this.qualitySelect),
+      onChange: (): void => this.handleGatedChange("bitrate", this.qualitySelect),
     });
 
     this.audioToggle = new Toggle({
@@ -573,7 +595,7 @@ export class Dashboard {
       id: "creatorMode",
       label: "Activar modo creador",
       checked: false,
-      onChange: (checked) => this.handleCreatorToggle(checked),
+      onChange: (checked): void => this.handleCreatorToggle(checked),
     });
 
     this.webcamToggle = new Toggle({
@@ -581,7 +603,7 @@ export class Dashboard {
       label: `<span class="label-icon">${ICONS.record}</span>Mi cámara en círculo`,
       labelAsHtml: true,
       checked: DEFAULT_CONFIG.webcam,
-      onChange: () => this.updateCreatorOptions(),
+      onChange: (): void => this.updateCreatorOptions(),
     });
 
     this.webcamPositionSelect = new Select({
@@ -842,7 +864,16 @@ export class Dashboard {
     recorder.subscribe((event, data) => {
       switch (event) {
         case "start":
+          this.isStarting = false;
           this.isRecording = true;
+          this.recordStartTime = Date.now();
+          this.recCounter.style.display = "inline-flex";
+          this.startTick();
+          this.stopBtn.disabled = false;
+          this.liveIndicator.style.display = "flex";
+          this.statusBadge.classList.add("active");
+          this.statusBadge.innerHTML = '<span class="pulse-dot"></span> Grabando';
+          document.querySelector(".rec-dot")?.classList.add("live");
           break;
         case "stop":
           this.handleRecordingStop(data as RecordingResult);
@@ -964,15 +995,14 @@ export class Dashboard {
   }
 
   /**
-   * Muestra el correo verificado (si existe) en el chip de usuario.
+   * Muestra el correo de la sesión Supabase (si existe) en el chip de usuario.
    */
   private updateUserChip(): void {
-    const email = this.readStorage(STORAGE_KEYS.USER_EMAIL);
+    const email = this.currentUserEmail;
     const nameEl = document.getElementById("userName");
     if (!nameEl) return;
 
-    // "Invitado" junto a "Plan Pro" era contradictorio: si la cuenta es Pro se
-    // muestra el correo o, en su defecto, un nombre coherente con el plan.
+    // El correo de identidad solo viene de la sesión autenticada, nunca del almacenamiento local.
     if (email) {
       nameEl.textContent = email.split("@")[0];
     } else {
@@ -995,14 +1025,29 @@ export class Dashboard {
    * Inicia la grabación aplicando el límite del plan.
    */
   private async handleStartRecording(): Promise<void> {
-    if (this.isRecording) return;
+    if (this.isRecording || this.isStarting) return;
 
     if (!canRecord()) {
       this.openProModal(true);
       return;
     }
 
+    if (this.currentRecording) {
+      try {
+        URL.revokeObjectURL(this.currentRecording.url);
+      } catch {
+        // El navegador puede haber revocado ya la URL.
+      }
+      this.currentRecording = null;
+      this.savedCurrentToLibrary = false;
+    }
+
     try {
+      this.isStarting = true;
+      this.remainingAtStart = getRemainingSeconds();
+      this.recordLimitSeconds = getRecordingLimitSeconds();
+      this.limitReached = false;
+      this.elapsedSeconds = 0;
       this.lockControls(true);
       this.updateUIForRecording();
 
@@ -1028,21 +1073,15 @@ export class Dashboard {
         await this.runCountdown();
       }
 
-      this.isRecording = true;
-      this.remainingAtStart = getRemainingSeconds();
-      this.recordLimitSeconds = getRecordingLimitSeconds();
-      this.limitReached = false;
-      this.elapsedSeconds = 0;
-      this.recordStartTime = Date.now();
       this.recLimitEl.textContent = formatClock(this.recordLimitSeconds);
-      this.recCounter.style.display = "inline-flex";
-      this.startTick();
 
       this.currentRecording = await recorder.startRecording(config, this.previewVideo);
     } catch (error) {
       console.error("Error al iniciar grabación:", error);
+      const shouldHandleError = this.isStarting || this.isRecording;
+      this.isStarting = false;
       this.stopTick();
-      this.handleRecordingError(error as Error);
+      if (shouldHandleError) this.handleRecordingError(error as Error);
     }
   }
 
@@ -1129,6 +1168,7 @@ export class Dashboard {
    */
   private handleRecordingStop(result: RecordingResult): void {
     this.isRecording = false;
+    this.isStarting = false;
     this.stopTick();
     this.currentRecording = result;
     this.currentDuration = this.elapsedSeconds;
@@ -1150,6 +1190,7 @@ export class Dashboard {
    */
   private handleRecordingError(error: Error): void {
     this.isRecording = false;
+    this.isStarting = false;
     this.stopTick();
     this.lockControls(false);
     this.resetUI();
@@ -1228,8 +1269,9 @@ export class Dashboard {
    * Descarta la grabación actual.
    */
   private handleDiscard(): void {
-    // Solo se libera la memoria si no quedó guardada en la biblioteca.
-    if (this.currentRecording && !this.savedCurrentToLibrary) {
+    // La biblioteca crea su propia Object URL; esta URL pertenece al reproductor
+    // principal y debe liberarse tanto si se guardó como si no.
+    if (this.currentRecording) {
       try {
         URL.revokeObjectURL(this.currentRecording.url);
       } catch {
@@ -1270,16 +1312,16 @@ export class Dashboard {
     this.placeholderText.style.display = "none";
     this.resultVideo.style.display = "none";
     this.previewVideo.style.display = "block";
-    this.liveIndicator.style.display = "flex";
+    this.liveIndicator.style.display = "none";
     this.startBtn.style.display = "none";
     this.stopBtn.style.display = "flex";
+    this.stopBtn.disabled = true;
     this.actionFooter.style.display = "none";
     this.recTimer.textContent = "00:00:00";
     this.recElapsed.textContent = "00:00";
-    this.statusBadge.classList.add("active");
-    this.statusBadge.innerHTML = '<span class="pulse-dot"></span> Grabando';
-    // El punto del título solo se enciende en rojo cuando se está grabando.
-    document.querySelector(".rec-dot")?.classList.add("live");
+    this.statusBadge.classList.remove("active");
+    this.statusBadge.textContent = "Preparando captura...";
+    document.querySelector(".rec-dot")?.classList.remove("live");
 
     const limitLabel = document.getElementById("clipLimitLabel");
     if (limitLabel) {
@@ -1307,6 +1349,7 @@ export class Dashboard {
     this.liveIndicator.style.display = "none";
     this.recCounter.style.display = "none";
     this.stopBtn.style.display = "none";
+    this.stopBtn.disabled = false;
     this.actionFooter.style.display = "none";
     this.startBtn.style.display = "flex";
     this.panControl.style.display = "none";
@@ -1581,7 +1624,7 @@ export class Dashboard {
    */
   private renderProfile(): void {
     const pro = isPro();
-    const email = this.readStorage(STORAGE_KEYS.USER_EMAIL);
+    const email = this.currentUserEmail;
     const items = library.getAll();
     const totalSeconds = items.reduce((sum, item) => sum + item.durationSeconds, 0);
 
@@ -1595,8 +1638,8 @@ export class Dashboard {
         <div class="profile-sub">
           ${
             email
-              ? "Cuenta verificada por correo en este navegador."
-              : "Aún no has verificado ningún correo. Puedes usar la app sin cuenta."
+              ? "Cuenta autenticada con Supabase."
+              : "Puedes usar el plan gratuito sin crear una cuenta."
           }
         </div>
         <span class="profile-tag ${pro ? "pro" : ""}">
@@ -1607,13 +1650,13 @@ export class Dashboard {
     `;
 
     const actions = document.getElementById("profileActions")!;
-    if (pro) {
+    if (this.currentUserEmail) {
       const logout = document.createElement("button");
       logout.className = "btn btn-secondary";
-      logout.innerHTML = `${ICONS.logout} Cerrar sesión Pro`;
+      logout.innerHTML = `${ICONS.logout} Cerrar sesión`;
       logout.addEventListener("click", () => this.confirmLogoutPro());
       actions.appendChild(logout);
-    } else {
+    } else if (!pro) {
       const upgrade = document.createElement("button");
       upgrade.className = "btn btn-pro";
       upgrade.innerHTML = `${ICONS.sparkles} Desbloquear Pro`;
@@ -1657,7 +1700,7 @@ export class Dashboard {
         <div class="data-row"><span class="data-label">Resolución máxima</span><span class="data-value">${pro ? "4K (2160p)" : "1080p"}</span></div>
         <div class="data-row"><span class="data-label">Fotogramas por segundo</span><span class="data-value">${pro ? "60 FPS" : "30 FPS"}</span></div>
         <div class="data-row"><span class="data-label">Calidad máxima</span><span class="data-value">${pro ? "30 Mbps" : "8 Mbps"}</span></div>
-        ${pro ? `<div class="data-row"><span class="data-label">Pro activado el</span><span class="data-value">${this.formatDate(this.readStorage(STORAGE_KEYS.PRO_SINCE))}</span></div>` : ""}
+        ${pro ? '<div class="data-row"><span class="data-label">Estado</span><span class="data-value">Verificado por el servidor</span></div>' : ""}
       </div>
     `;
 
@@ -1666,29 +1709,29 @@ export class Dashboard {
     dataCard.innerHTML = `
       <h3 class="card-title">Mis datos</h3>
       <div class="data-list">
-        <div class="data-row"><span class="data-label">Correo verificado</span><span class="data-value">${email ? escapeHtml(email) : "Ninguno"}</span></div>
+        <div class="data-row"><span class="data-label">Cuenta</span><span class="data-value">${email ? escapeHtml(email) : "No iniciada"}</span></div>
         <div class="data-row"><span class="data-label">Usas SCREENREC desde</span><span class="data-value">${this.formatDate(this.readStorage(STORAGE_KEYS.MEMBER_SINCE))}</span></div>
         <div class="data-row"><span class="data-label">Dónde se guarda todo</span><span class="data-value">Solo en este navegador</span></div>
         <div class="data-row"><span class="data-label">Grabaciones en servidores</span><span class="data-value">Ninguna</span></div>
       </div>
       <p class="plan-note" style="margin-top:12px">
-        Tus vídeos y tus datos no salen de este dispositivo. Si cambias de navegador o
-        borras los datos de navegación, tendrás que verificar tu correo de nuevo.
+        Tus grabaciones permanecen en este dispositivo y no se sincronizan con servidores.
+        La cuenta y la suscripción se verifican en línea; puedes volver a iniciar sesión
+        desde otro navegador para recuperar el acceso Pro.
       </p>
     `;
   }
 
   /**
-   * Pide confirmación antes de cerrar la sesión Pro.
+   * Pide confirmación antes de cerrar la sesión de la cuenta.
    */
   private confirmLogoutPro(): void {
     this.modalBox.classList.remove("modal-wide");
     this.modalBox.innerHTML = `
-      <h2>${ICONS.logout} Cerrar sesión Pro</h2>
+      <h2>${ICONS.logout} Cerrar sesión</h2>
       <p class="modal-sub">
-        Volverás al plan gratuito en este navegador (3 minutos por grabación y 1080p).
-        Tus grabaciones guardadas <strong>no se borran</strong>. Podrás reactivar Pro
-        verificando otra vez tu correo.
+        Volverás al plan gratuito en este navegador. Tu suscripción no se cancela al cerrar
+        sesión y tus grabaciones guardadas <strong>no se borran</strong>.
       </p>
       <div class="modal-actions">
         <button class="btn btn-secondary" id="cancelLogoutBtn">Cancelar</button>
@@ -1699,11 +1742,23 @@ export class Dashboard {
 
     document.getElementById("cancelLogoutBtn")!.addEventListener("click", () => this.closeModal());
     document.getElementById("confirmLogoutBtn")!.addEventListener("click", () => {
-      setPro(false);
-      this.refreshProGating();
-      this.updatePlanCard();
-      this.renderProfile();
-      this.closeModal();
+      void (async (): Promise<void> => {
+        try {
+          await signOutBillingUser();
+          this.currentUserEmail = null;
+          setProFromEntitlement(false);
+          this.refreshProGating();
+          this.updatePlanCard();
+          this.updateUserChip();
+          this.renderProfile();
+          this.closeModal();
+        } catch {
+          this.showAlertModal(
+            "No se pudo cerrar sesión",
+            "Revisa tu conexión e inténtalo de nuevo."
+          );
+        }
+      })();
     });
   }
 
@@ -1780,16 +1835,11 @@ export class Dashboard {
     actions.innerHTML = "";
 
     if (pro) {
-      const disable = document.createElement("button");
-      disable.className = "btn btn-secondary";
-      disable.textContent = "Cerrar sesión Pro en este equipo";
-      disable.addEventListener("click", () => {
-        setPro(false);
-        this.refreshProGating();
-        this.updatePlanCard();
-        this.renderSettings();
-      });
-      actions.appendChild(disable);
+      const manage = document.createElement("button");
+      manage.className = "btn btn-secondary";
+      manage.textContent = "Administrar suscripción";
+      manage.addEventListener("click", () => void this.openBillingPortal());
+      actions.appendChild(manage);
     } else {
       const upgrade = document.createElement("button");
       upgrade.className = "btn btn-pro";
@@ -1838,11 +1888,11 @@ export class Dashboard {
   }
 
   // ============================================
-  // Pro y verificación OTP
+  // Pro y suscripciones
   // ============================================
 
   /**
-   * Abre la ventana de mejora a Pro.
+   * Abre la oferta Pro con períodos recurrentes.
    * @param {boolean} [limitHit] - true si se abre por agotar el tiempo.
    * @param {GatedSetting} [blockedSetting] - Ajuste Pro que se intentó usar.
    */
@@ -1852,8 +1902,8 @@ export class Dashboard {
     blockedFeature?: "creator"
   ): void {
     this.modalBox.classList.remove("modal-wide");
-    const features = PRO.features.map((f) => `<li>${f}</li>`).join("");
-    const hasCheckout = PRO.checkoutUrl && PRO.checkoutUrl !== "#";
+    const features = PRO.features.map((feature) => `<li>${feature}</li>`).join("");
+    const configured = isBillingConfigured();
 
     const settingNames: Record<GatedSetting, string> = {
       resolution: "esa resolución",
@@ -1876,184 +1926,162 @@ export class Dashboard {
       <h2>${ICONS.sparkles} SCREENREC Pro</h2>
       <p class="modal-sub">${subtitle}</p>
       <div class="modal-price">${PRO.priceLabel}</div>
+      <p class="modal-sub">El importe y la moneda se mostrarán antes de confirmar el pago.</p>
       <ul class="modal-features">${features}</ul>
+      ${configured ? "" : '<p class="modal-error">El checkout todavía no está configurado.</p>'}
       <div class="modal-actions">
-        ${hasCheckout ? '<button class="btn btn-secondary" id="modalCheckoutBtn">Suscribirme</button>' : ""}
-        <button class="btn btn-pro" id="modalVerifyBtn">${ICONS.lock} Verificar por correo</button>
+        <button class="btn btn-secondary" id="monthlyCheckoutBtn" ${configured ? "" : "disabled"}>Plan mensual</button>
+        <button class="btn btn-pro" id="annualCheckoutBtn" ${configured ? "" : "disabled"}>Plan anual</button>
       </div>
       <button class="modal-close" id="modalCloseBtn">Ahora no</button>
     `;
 
     this.modalOverlay.style.display = "flex";
-
     document.getElementById("modalCloseBtn")!.addEventListener("click", () => this.closeModal());
-    document.getElementById("modalVerifyBtn")!.addEventListener("click", () => {
-      this.openEmailModal();
+    document.getElementById("monthlyCheckoutBtn")!.addEventListener("click", () => {
+      void this.startCheckout("monthly");
     });
-    document.getElementById("modalCheckoutBtn")?.addEventListener("click", () => {
-      window.open(PRO.checkoutUrl, "_blank", "noopener");
+    document.getElementById("annualCheckoutBtn")!.addEventListener("click", () => {
+      void this.startCheckout("annual");
     });
   }
 
   /**
-   * Paso 1 del OTP: pedir el correo.
+   * Abre una Checkout Session autenticada o solicita magic link antes de crearla.
+   * @param {BillingInterval} interval - Periodicidad elegida.
    */
-  private openEmailModal(): void {
-    const channel = getOtpChannel();
-    const isSelfService = channel === "visitor";
+  private async startCheckout(interval: BillingInterval): Promise<void> {
+    if (!isBillingConfigured()) {
+      this.showAlertModal(
+        "Checkout no configurado",
+        "La autenticación y facturación aún no están conectadas."
+      );
+      return;
+    }
+    if (this.checkoutInProgress) return;
+    this.checkoutInProgress = true;
+    const checkoutButtons = [
+      document.getElementById("monthlyCheckoutBtn"),
+      document.getElementById("annualCheckoutBtn"),
+    ].filter((button): button is HTMLButtonElement => button instanceof HTMLButtonElement);
+    checkoutButtons.forEach((button) => (button.disabled = true));
 
-    const intro = isSelfService
-      ? `Te enviaremos un código de ${OTP_LENGTH} dígitos para activar Pro.`
-      : "Déjanos tu correo y activaremos tu acceso Pro lo antes posible.";
+    try {
+      const url = await createCheckoutUrl(interval);
+      if (!url) {
+        this.openBillingSignInModal(interval);
+        return;
+      }
+      window.location.assign(url);
+    } catch (error) {
+      console.error(
+        "No se pudo iniciar el checkout",
+        error instanceof Error ? error.message : "unknown error"
+      );
+      this.showAlertModal(
+        "Checkout no disponible",
+        "No se pudo iniciar el pago. Revisa que el servicio esté configurado y vuelve a intentarlo."
+      );
+    } finally {
+      this.checkoutInProgress = false;
+      checkoutButtons.forEach((button) => (button.disabled = !isBillingConfigured()));
+    }
+  }
 
+  private handleBillingReturn(isProEntitled: boolean): void {
+    const result = new URLSearchParams(window.location.search).get("billing");
+    if (result === "cancel") {
+      if (!this.billingReturnMessageShown) {
+        this.billingReturnMessageShown = true;
+        this.showAlertModal("Checkout cancelado", "No se completó ningún cobro.");
+      }
+      this.clearBillingReturnQuery();
+      return;
+    }
+    if (result !== "success") return;
+
+    if (isProEntitled) {
+      this.billingReturnMessageShown = true;
+      this.showAlertModal("¡SCREENREC Pro está activo!", "Se confirmó tu suscripción.");
+      this.clearBillingReturnQuery();
+    } else if (!this.billingReturnMessageShown) {
+      this.billingReturnMessageShown = true;
+      this.showAlertModal(
+        "Confirmando pago",
+        "Recibimos la operación y estamos verificando la suscripción; la página se actualizará automáticamente. Si no cambia en unos segundos, vuelve a cargarla."
+      );
+    }
+  }
+
+  private clearBillingReturnQuery(): void {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("billing");
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+  }
+
+  /**
+   * Pide correo para Supabase Auth; el magic link nunca concede Pro por sí solo.
+   * @param {BillingInterval} interval - Período de suscripción que se reanudará al iniciar sesión.
+   */
+  private openBillingSignInModal(interval: BillingInterval): void {
     this.modalBox.innerHTML = `
-      <h2>${ICONS.mail} ${isSelfService ? "Verifica tu correo" : "Solicita acceso Pro"}</h2>
-      <p class="modal-sub">
-        ${intro}
-        Solo aceptamos proveedores conocidos (Gmail, Outlook, Yahoo, iCloud o Proton).
-      </p>
-      <input type="email" class="modal-input" id="otpEmail" placeholder="tucorreo@gmail.com" autocomplete="email" />
-      <div class="modal-error" id="otpEmailError"></div>
+      <h2>${ICONS.mail} Inicia sesión para suscribirte</h2>
+      <p class="modal-sub">Te enviaremos un enlace seguro de acceso. El estado Pro solo se activa cuando el servidor confirma la suscripción.</p>
+      <input type="email" class="modal-input" id="billingEmail" placeholder="tu@email.com" autocomplete="email" required />
+      <div class="modal-error" id="billingEmailError"></div>
       <div class="modal-actions">
-        <button class="btn btn-secondary" id="otpCancelBtn">Cancelar</button>
-        <button class="btn btn-primary" id="otpSendBtn">${isSelfService ? "Enviar código" : "Enviar solicitud"}</button>
+        <button class="btn btn-secondary" id="billingCancelBtn">Cancelar</button>
+        <button class="btn btn-primary" id="billingSendLinkBtn">Enviar enlace</button>
       </div>
     `;
-
-    const input = document.getElementById("otpEmail") as HTMLInputElement;
-    const errorEl = document.getElementById("otpEmailError")!;
-    const sendBtn = document.getElementById("otpSendBtn") as HTMLButtonElement;
+    const input = document.getElementById("billingEmail") as HTMLInputElement;
+    const error = document.getElementById("billingEmailError")!;
+    const sendButton = document.getElementById("billingSendLinkBtn") as HTMLButtonElement;
     input.focus();
 
     const send = async (): Promise<void> => {
-      const validation = validateEmail(input.value);
-      if (!validation.valid) {
-        errorEl.textContent = validation.reason || "Correo no válido.";
-        return;
-      }
-
-      if (channel === "none") {
-        errorEl.textContent = "La verificación aún no está configurada.";
-        return;
-      }
-
-      errorEl.textContent = "";
-      sendBtn.disabled = true;
-      sendBtn.textContent = "Enviando...";
-
-      const email = input.value.trim().toLowerCase();
-      const result = await otpService.createChallenge(email);
-
-      if (!result.sent) {
-        sendBtn.disabled = false;
-        sendBtn.textContent = isSelfService ? "Enviar código" : "Enviar solicitud";
-        errorEl.textContent = "No se pudo enviar. Revisa tu conexión e inténtalo de nuevo.";
-        return;
-      }
-
-      if (result.channel === "visitor") {
-        this.openCodeModal(email);
-      } else {
-        this.showRequestSent(email);
+      if (!input.reportValidity()) return;
+      sendButton.disabled = true;
+      sendButton.textContent = "Enviando…";
+      error.textContent = "";
+      try {
+        const email = input.value.trim().toLowerCase();
+        await sendBillingMagicLink(email, interval);
+        this.modalBox.innerHTML = `
+          <h2>${ICONS.mail} Revisa tu correo</h2>
+          <p class="modal-success">Enviamos un enlace de acceso a <strong>${escapeHtml(email)}</strong>.</p>
+          <p class="modal-sub">Al abrirlo, volverás a SCREENREC y se continuará con el plan elegido.</p>
+          <div class="modal-actions"><button class="btn btn-primary" id="billingDoneBtn">Entendido</button></div>
+        `;
+        document
+          .getElementById("billingDoneBtn")!
+          .addEventListener("click", () => this.closeModal());
+      } catch {
+        sendButton.disabled = false;
+        sendButton.textContent = "Enviar enlace";
+        error.textContent =
+          "No se pudo enviar el enlace. Revisa la configuración de Supabase Auth e inténtalo de nuevo.";
       }
     };
 
-    document.getElementById("otpCancelBtn")!.addEventListener("click", () => this.closeModal());
-    sendBtn.addEventListener("click", () => void send());
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") void send();
+    document.getElementById("billingCancelBtn")!.addEventListener("click", () => this.closeModal());
+    sendButton.addEventListener("click", () => void send());
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") void send();
     });
   }
 
-  /**
-   * Paso 2 del OTP: introducir el código recibido.
-   * @param {string} email - Correo al que se envió el código.
-   */
-  private openCodeModal(email: string): void {
-    this.modalBox.innerHTML = `
-      <h2>${ICONS.lock} Introduce el código</h2>
-      <p class="modal-sub">Hemos enviado un código de ${OTP_LENGTH} dígitos a <strong>${escapeHtml(email)}</strong>. Revisa también la carpeta de spam.</p>
-      <input type="text" class="modal-input otp-input" id="otpCode" inputmode="numeric" maxlength="${OTP_LENGTH}" placeholder="000000" autocomplete="one-time-code" />
-      <div class="modal-error" id="otpCodeError"></div>
-      <div class="modal-actions">
-        <button class="btn btn-secondary" id="otpBackBtn">Volver</button>
-        <button class="btn btn-primary" id="otpVerifyBtn">Activar Pro</button>
-      </div>
-    `;
-
-    const input = document.getElementById("otpCode") as HTMLInputElement;
-    const errorEl = document.getElementById("otpCodeError")!;
-    input.focus();
-
-    input.addEventListener("input", () => {
-      input.value = input.value.replace(/\D/g, "").slice(0, OTP_LENGTH);
-    });
-
-    const verify = (): void => {
-      const result = otpService.verify(input.value);
-      if (result.ok) {
-        setPro(true);
-        // Se guarda el correo verificado para mostrarlo en el perfil.
-        this.writeStorage(STORAGE_KEYS.USER_EMAIL, email);
-        this.writeStorage(STORAGE_KEYS.PRO_SINCE, new Date().toISOString());
-        this.refreshProGating();
-        this.updatePlanCard();
-        this.updateUserChip();
-        this.showProSuccess();
-        return;
-      }
-
-      const messages: Record<string, string> = {
-        "no-challenge": "El código ya no es válido. Solicita uno nuevo.",
-        expired: "El código ha caducado. Solicita uno nuevo.",
-        mismatch: "El código no coincide. Revísalo e inténtalo otra vez.",
-        "too-many-attempts": "Demasiados intentos. Solicita un código nuevo.",
-      };
-      errorEl.textContent = messages[result.reason] ?? "No se pudo verificar el código.";
-    };
-
-    document.getElementById("otpBackBtn")!.addEventListener("click", () => {
-      otpService.reset();
-      this.openEmailModal();
-    });
-    document.getElementById("otpVerifyBtn")!.addEventListener("click", () => verify());
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") verify();
-    });
-  }
-
-  /**
-   * Confirmación cuando la solicitud se envía al administrador.
-   * @param {string} email - Correo del solicitante.
-   */
-  private showRequestSent(email: string): void {
-    otpService.reset();
-    this.modalBox.innerHTML = `
-      <h2>${ICONS.check} Solicitud enviada</h2>
-      <p class="modal-success">Hemos recibido tu solicitud desde <strong>${escapeHtml(email)}</strong>.</p>
-      <p class="modal-sub">Te escribiremos a ese correo para activar tu acceso Pro.</p>
-      <div class="modal-actions">
-        <button class="btn btn-primary" id="successCloseBtn">Cerrar</button>
-      </div>
-    `;
-    document.getElementById("successCloseBtn")!.addEventListener("click", () => this.closeModal());
-  }
-
-  /**
-   * Mensaje de éxito tras activar Pro.
-   */
-  private showProSuccess(): void {
-    this.modalBox.innerHTML = `
-      <h2>${ICONS.check} ¡Pro activado!</h2>
-      <p class="modal-success">Ya puedes grabar sin límite de tiempo, en 4K y a 60 FPS.</p>
-      <div class="modal-actions">
-        <button class="btn btn-primary" id="successCloseBtn">Empezar a grabar</button>
-      </div>
-    `;
-    document.getElementById("successCloseBtn")!.addEventListener("click", () => {
-      this.closeModal();
-      this.switchView("dashboard");
-    });
+  /** Abre el portal de facturación configurado para una suscripción activa. */
+  private async openBillingPortal(): Promise<void> {
+    try {
+      const url = await createBillingPortalUrl();
+      window.location.assign(url);
+    } catch {
+      this.showAlertModal(
+        "No se pudo abrir la facturación",
+        "Inicia sesión de nuevo o revisa la configuración del portal de facturación."
+      );
+    }
   }
 
   /**

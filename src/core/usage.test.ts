@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import {
   isPro,
-  setPro,
+  setProFromEntitlement,
   getDailyLimitSeconds,
   getUsedSeconds,
   getRemainingSeconds,
@@ -13,6 +13,7 @@ import { FREE_DAILY_SECONDS } from "@/config/constants";
 
 beforeEach(() => {
   localStorage.clear();
+  setProFromEntitlement(false);
 });
 
 describe("plan gratuito", () => {
@@ -45,17 +46,23 @@ describe("plan gratuito", () => {
 describe("plan Pro", () => {
   it("activa y desactiva el estado Pro", () => {
     expect(isPro()).toBe(false);
-    setPro(true);
+    setProFromEntitlement(true);
     expect(isPro()).toBe(true);
-    setPro(false);
+    setProFromEntitlement(false);
     expect(isPro()).toBe(false);
   });
 
   it("otorga tiempo ilimitado y no consume crédito", () => {
-    setPro(true);
+    setProFromEntitlement(true);
     expect(getRemainingSeconds()).toBe(Infinity);
     consumeSeconds(1000);
     expect(getUsedSeconds()).toBe(0);
     expect(canRecord()).toBe(true);
+  });
+
+  it("ignora un marcador Pro heredado o manipulado en localStorage", () => {
+    localStorage.setItem("screenrec_pro_v1", "true");
+    expect(isPro()).toBe(false);
+    expect(getRemainingSeconds()).toBe(FREE_DAILY_SECONDS);
   });
 });

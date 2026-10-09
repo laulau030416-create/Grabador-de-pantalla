@@ -1,22 +1,20 @@
 /**
  * Coherencia del estado del plan.
  *
- * Se detectó una contradicción en la interfaz: el banner ofrecía "Hazte Pro"
- * mientras el panel mostraba "Plan Pro", y el usuario aparecía como "Invitado"
- * con plan Pro. Estos tests fijan el comportamiento correcto.
+ * Los marcadores locales históricos no deben conceder Pro ni establecer la
+ * identidad del usuario. Solo una respuesta de billing autenticada puede hacerlo.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { STORAGE_KEYS } from "@/config/constants";
+
+const LEGACY_PRO_KEY = "screenrec_pro_v1";
+const LEGACY_EMAIL_KEY = "screenrec_email_v1";
 
 const HTML_PATH = resolve(__dirname, "../../index.html");
 
-/**
- * Extrae el contenido del <body> del index.html real.
- * @returns {string} HTML interno del body sin scripts.
- */
+/** Extrae el contenido del body del index.html real. */
 function loadBodyMarkup(): string {
   const html = readFileSync(HTML_PATH, "utf-8");
   const match = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
@@ -43,8 +41,12 @@ afterEach(() => {
   vi.resetModules();
 });
 
-describe("Usuario del plan gratuito", () => {
-  it("ve el banner con la oferta de Pro", async () => {
+describe("marcadores Pro heredados en localStorage", () => {
+  beforeEach(() => {
+    localStorage.setItem(LEGACY_PRO_KEY, "true");
+  });
+
+  it("no acepta el flag local como prueba de suscripción", async () => {
     const { Dashboard } = await import("./dashboard");
     new Dashboard();
 
@@ -53,57 +55,35 @@ describe("Usuario del plan gratuito", () => {
     expect(document.getElementById("userName")!.textContent).toBe("Invitado");
   });
 
-  it("muestra el botón de desbloquear Pro", async () => {
+  it("mantiene visible la oferta y los candados sin entitlement del backend", async () => {
     const { Dashboard } = await import("./dashboard");
     new Dashboard();
 
     expect(document.getElementById("upgradeBtn")!.style.display).not.toBe("none");
-  });
-});
-
-describe("Usuario Pro", () => {
-  beforeEach(() => {
-    localStorage.setItem(STORAGE_KEYS.PRO, "true");
-  });
-
-  it("no ve el banner de 'Hazte Pro' (era contradictorio)", async () => {
-    const { Dashboard } = await import("./dashboard");
-    new Dashboard();
-
-    // Ofrecer Pro a quien ya lo tiene confunde y roba espacio a la vista previa.
-    expect(document.getElementById("heroBanner")!.style.display).toBe("none");
-    expect(document.querySelectorAll(".hero-slide").length).toBe(0);
-  });
-
-  it("no aparece como 'Invitado' teniendo plan Pro", async () => {
-    const { Dashboard } = await import("./dashboard");
-    new Dashboard();
-
-    expect(document.getElementById("userPlan")!.textContent).toMatch(/pro/i);
-    expect(document.getElementById("userName")!.textContent).not.toBe("Invitado");
-  });
-
-  it("muestra su correo verificado cuando existe", async () => {
-    localStorage.setItem(STORAGE_KEYS.USER_EMAIL, "persona@gmail.com");
-    const { Dashboard } = await import("./dashboard");
-    new Dashboard();
-
-    expect(document.getElementById("userName")!.textContent).toBe("persona");
-  });
-
-  it("oculta el botón de desbloquear Pro", async () => {
-    const { Dashboard } = await import("./dashboard");
-    new Dashboard();
-
-    expect(document.getElementById("upgradeBtn")!.style.display).toBe("none");
-  });
-
-  it("no tiene opciones bloqueadas con candado", async () => {
-    const { Dashboard } = await import("./dashboard");
-    new Dashboard();
-
     const resolution = document.getElementById("resolutionSelect") as HTMLSelectElement;
-    const labels = Array.from(resolution.options).map((o) => o.textContent ?? "");
-    labels.forEach((label) => expect(label).not.toMatch(/Pro/));
+    const labels = Array.from(resolution.options).map((option) => option.textContent ?? "");
+    expect(labels.some((label) => /Pro|🔒|lock/i.test(label))).toBe(true);
+  });
+
+  it("ya no expone activación OTP local y mantiene checkout deshabilitado hasta configurar Supabase", async () => {
+    const { Dashboard } = await import("./dashboard");
+    new Dashboard();
+    (document.getElementById("upgradeBtn") as HTMLButtonElement).click();
+
+    expect((document.getElementById("monthlyCheckoutBtn") as HTMLButtonElement).disabled).toBe(
+      true
+    );
+    expect((document.getElementById("annualCheckoutBtn") as HTMLButtonElement).disabled).toBe(true);
+    expect(document.getElementById("modalVerifyBtn")).toBeNull();
+    expect(document.body.textContent).not.toMatch(/Activar Pro|Verificar por correo/);
+    expect(document.body.textContent).not.toMatch(/Stripe/i);
+  });
+
+  it("ignora el correo antiguo guardado en el navegador", async () => {
+    localStorage.setItem(LEGACY_EMAIL_KEY, "persona@gmail.com");
+    const { Dashboard } = await import("./dashboard");
+    new Dashboard();
+
+    expect(document.getElementById("userName")!.textContent).toBe("Invitado");
   });
 });
