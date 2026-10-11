@@ -224,6 +224,7 @@ export class Dashboard {
     }
 
     const mobile = isMobileDevice();
+    this.appEl.classList.toggle("mobile-device", mobile);
     this.startBtn.disabled = true;
     this.startBtn.title = mobile
       ? "La grabación de pantalla no está disponible en móviles"
@@ -242,17 +243,27 @@ export class Dashboard {
     if (notice) {
       notice.innerHTML = mobile
         ? `
-          <span class="notice-icon">${ICONS.smartphone}</span>
-          <div class="notice-body">
-            <div class="notice-title">La grabación no está disponible en el móvil</div>
-            No es un fallo de tu teléfono: <strong>ningún navegador móvil permite grabar la
-            pantalla desde una página web</strong>, es una limitación de Android y iOS.
-            <ol>
-              <li>Para grabar, abre SCREENREC en un <strong>ordenador</strong> con Chrome, Edge o Firefox.</li>
-              <li>Si necesitas grabar el móvil, usa su <strong>grabador de pantalla integrado</strong>
-              (desliza desde arriba y busca "Grabar pantalla").</li>
-            </ol>
-            Mientras tanto, aquí puedes consultar tu <strong>biblioteca</strong>, tu <strong>perfil</strong> y la <strong>ayuda</strong>.
+          <span class="mobile-notice-mark" aria-hidden="true">${ICONS.smartphone}</span>
+          <div class="mobile-notice-content">
+            <span class="mobile-notice-eyebrow">COMPATIBILIDAD DEL DISPOSITIVO</span>
+            <h2 class="notice-title">Graba desde un computador</h2>
+            <p class="mobile-notice-intro">
+              Los navegadores móviles no permiten que una página web capture la pantalla.
+              No es un problema de tu teléfono.
+            </p>
+            <div class="mobile-notice-steps">
+              <div class="mobile-notice-step">
+                <span>01</span>
+                <p><strong>Para usar SCREENREC</strong>, abre esta página en un computador u ordenador con Chrome, Edge o Firefox.</p>
+              </div>
+              <div class="mobile-notice-step">
+                <span>02</span>
+                <p><strong>Para grabar tu teléfono</strong>, usa el grabador de pantalla integrado en Android o iPhone.</p>
+              </div>
+            </div>
+            <p class="mobile-notice-foot">
+              Puedes seguir explorando la biblioteca, los ajustes y la ayuda desde el menú inferior.
+            </p>
           </div>`
         : `
           <span class="notice-icon">${ICONS.info}</span>
