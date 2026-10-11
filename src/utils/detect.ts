@@ -18,7 +18,15 @@ export function isDisplayMediaSupported(): boolean {
  * @returns {boolean} True si está soportado.
  */
 export function isMediaRecorderSupported(): boolean {
-  return !!window.MediaRecorder;
+  return typeof MediaRecorder !== "undefined";
+}
+
+function supportsMimeType(mimeType: string): boolean {
+  return (
+    isMediaRecorderSupported() &&
+    typeof MediaRecorder.isTypeSupported === "function" &&
+    MediaRecorder.isTypeSupported(mimeType)
+  );
 }
 
 /**
@@ -43,7 +51,7 @@ export function isAudioContextSupported(): boolean {
  */
 export function detectBestFormat(): { mimeType: string; ext: string; label: string } {
   for (const format of VIDEO_FORMATS) {
-    if (MediaRecorder.isTypeSupported(format.mimeType)) {
+    if (supportsMimeType(format.mimeType)) {
       return format;
     }
   }
@@ -57,9 +65,7 @@ export function detectBestFormat(): { mimeType: string; ext: string; label: stri
  * @returns {boolean} True si hay algún mimeType soportado para esa extensión.
  */
 export function isFormatSupported(ext: "mp4" | "webm"): boolean {
-  return VIDEO_FORMATS.some(
-    (format) => format.ext === ext && MediaRecorder.isTypeSupported(format.mimeType)
-  );
+  return VIDEO_FORMATS.some((format) => format.ext === ext && supportsMimeType(format.mimeType));
 }
 
 /**
@@ -72,8 +78,13 @@ export function isFormatSupported(ext: "mp4" | "webm"): boolean {
  * @returns {ResolvedFormat} Formato definitivo a usar.
  */
 export function resolveFormat(preferred: "mp4" | "webm"): ResolvedFormat {
+  if (!isMediaRecorderSupported()) {
+    const fallback = VIDEO_FORMATS.find((format) => format.ext === "webm")!;
+    return { ...fallback, ext: "webm", fellBack: preferred !== "webm" };
+  }
+
   const match = VIDEO_FORMATS.find(
-    (format) => format.ext === preferred && MediaRecorder.isTypeSupported(format.mimeType)
+    (format) => format.ext === preferred && supportsMimeType(format.mimeType)
   );
 
   if (match) {
@@ -125,7 +136,7 @@ export function isMobileDevice(): boolean {
  * @returns {boolean} true si la captura de pantalla es posible.
  */
 export function canCaptureScreen(): boolean {
-  return isDisplayMediaSupported() && !isMobileDevice();
+  return isBrowserSupported() && !isMobileDevice();
 }
 
 /**

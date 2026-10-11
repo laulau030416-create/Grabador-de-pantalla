@@ -96,15 +96,16 @@ export class IndexedDbStore implements RecordingStore {
     this.dbPromise = new Promise((resolve, reject) => {
       const request = indexedDB.open(DB_NAME, DB_VERSION);
 
-      request.onupgradeneeded = () => {
+      request.onupgradeneeded = (): void => {
         const db = request.result;
         if (!db.objectStoreNames.contains(STORE_NAME)) {
           db.createObjectStore(STORE_NAME, { keyPath: "id" });
         }
       };
 
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error ?? new Error("No se pudo abrir IndexedDB"));
+      request.onsuccess = (): void => resolve(request.result);
+      request.onerror = (): void =>
+        reject(request.error ?? new Error("No se pudo abrir IndexedDB"));
     });
 
     return this.dbPromise;
@@ -125,9 +126,9 @@ export class IndexedDbStore implements RecordingStore {
       const transaction = db.transaction(STORE_NAME, mode);
       const request = operation(transaction.objectStore(STORE_NAME));
 
-      request.onsuccess = () => resolve(request.result as T);
-      request.onerror = () => reject(request.error ?? new Error("Error de almacenamiento"));
-      transaction.onabort = () =>
+      request.onsuccess = (): void => resolve(request.result as T);
+      request.onerror = (): void => reject(request.error ?? new Error("Error de almacenamiento"));
+      transaction.onabort = (): void =>
         reject(transaction.error ?? new Error("Transacción cancelada: espacio insuficiente"));
     });
   }
