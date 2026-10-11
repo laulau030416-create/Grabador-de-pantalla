@@ -2569,8 +2569,10 @@ input:checked + .slider-toggle:before {
     width: min(100%, 620px);
     margin: auto;
     padding: 22px;
-    gap: 16px;
-    align-items: flex-start;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
     color: var(--text-muted);
     background:
       radial-gradient(circle at 100% 0%, rgba(228, 29, 32, 0.12), transparent 42%),
@@ -2586,6 +2588,7 @@ input:checked + .slider-toggle:before {
     width: 44px;
     height: 44px;
     flex: 0 0 44px;
+    align-self: flex-start;
     color: #ff7779;
     background: var(--brand-soft);
     border: 1px solid var(--brand-border);
@@ -2599,6 +2602,7 @@ input:checked + .slider-toggle:before {
 
   .mobile-notice-content {
     min-width: 0;
+    width: 100%;
   }
 
   .mobile-notice-eyebrow {
